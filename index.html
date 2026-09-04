@@ -71,10 +71,11 @@
     }
     .btn-action {
       padding: 12px 24px; font-size: 18px; font-weight: bold; cursor: pointer;
-      border: none; border-radius: 12px; background: #2ed573; color: white; margin: 8px;
+      border: none; border-radius: 12px; background: #2ed573; color: white; margin: 6px;
       touch-action: manipulation;
     }
     .btn-secondary { background: #ffa502; }
+    .btn-danger { background: #ff4757; }
     #room-code-display {
       font-size: 28px; letter-spacing: 2px; color: #ffd32a; font-weight: bold;
       background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 10px;
@@ -177,10 +178,20 @@
   </div>
 
   <div id="screen-winner" class="overlay" style="display:none;">
-    <div style="font-size: 60px;">🏆🎉</div>
-    <h2 id="winner-name" style="color: #ffd32a;"></h2>
-    <p id="winner-reward" style="color:#7bed9f; font-size: 20px; font-weight:bold;"></p>
-    <div id="final-ranks" style="background:rgba(255,255,255,0.1); padding:15px; border-radius:10px; width:80%;"></div>
+    <div style="font-size: 55px;">🏆🎉</div>
+    <h2 id="winner-name" style="color: #ffd32a; margin: 5px 0;"></h2>
+    <p id="winner-reward" style="color:#7bed9f; font-size: 20px; font-weight:bold; margin-top:0;"></p>
+    <div id="final-ranks" style="background:rgba(255,255,255,0.1); padding:12px; border-radius:10px; width:85%; max-width:400px;"></div>
+    
+    <div id="host-end-buttons" style="margin-top: 15px; display:none;">
+      <button class="btn-action" onclick="hostReplay()">Rejouer la manche 🔄</button>
+      <button class="btn-action btn-danger" onclick="leaveRoom()">Quitter le salon ❌</button>
+    </div>
+    <div id="client-wait-message" style="margin-top: 15px; color:#ffd32a; font-weight:bold; display:none;">
+      En attente de l'hôte pour rejouer...
+      <br>
+      <button class="btn-action btn-danger" style="margin-top:10px;" onclick="leaveRoom()">Quitter</button>
+    </div>
   </div>
 
   <script>
@@ -240,7 +251,7 @@
       });
 
       peer.on('error', () => {
-        alert("Erreur de salon, réessaie !");
+        alert("Erreur de connexion PeerJS, réessaie !");
         location.reload();
       });
     }
@@ -270,14 +281,26 @@
     }
 
     function hostBroadcastStart() {
+      // Génère les questions pour la manche
       const questions = [];
       for (let i = 0; i < gameConfig.totalQ; i++) {
         questions.push(generateMathProblem(gameConfig.op));
       }
       gameConfig.questions = questions;
 
+      // Remise à zéro des scores
+      Object.keys(players).forEach(id => {
+        players[id].score = 0;
+        players[id].totalTime = 0;
+      });
+
       broadcast({ type: 'START_GAME', config: gameConfig, players });
       startGameLocally(gameConfig, players);
+    }
+
+    function hostReplay() {
+      document.getElementById('screen-winner').style.display = 'none';
+      hostBroadcastStart();
     }
 
     function joinRoom() {
@@ -303,6 +326,7 @@
           } else if (data.type === 'START_GAME') {
             gameConfig = data.config;
             players = data.players;
+            document.getElementById('screen-winner').style.display = 'none';
             startGameLocally(gameConfig, players);
           } else if (data.type === 'SCORE_UPDATE') {
             players = data.players;
@@ -437,14 +461,28 @@
       const winner = sorted[0];
 
       document.getElementById('screen-winner').style.display = 'flex';
-      document.getElementById('winner-name').innerText = `🏆 ${winner.name} gagne la battle ! 🏆`;
-      document.getElementById('winner-reward').innerText = `Lot : ${gameConfig.reward}`;
+      document.getElementById('winner-name').innerText = `🏆 ${winner.name} remporte le trophée ! 🏆`;
+      document.getElementById('winner-reward').innerText = `Lot gagné : ${gameConfig.reward}`;
 
-      let html = "<strong>Classement final :</strong><br><br>";
+      let html = "<strong>Classement de la manche :</strong><br><br>";
       sorted.forEach((p, idx) => {
         html += `${idx + 1}. <b>${p.name}</b> — ${p.score} pts (${(p.totalTime / 1000).toFixed(1)}s)<br>`;
       });
       document.getElementById('final-ranks').innerHTML = html;
+
+      // Affichage des commandes selon si on est l'hôte ou un invité
+      if (isHost) {
+        document.getElementById('host-end-buttons').style.display = 'block';
+        document.getElementById('client-wait-message').style.display = 'none';
+      } else {
+        document.getElementById('host-end-buttons').style.display = 'none';
+        document.getElementById('client-wait-message').style.display = 'block';
+      }
+    }
+
+    function leaveRoom() {
+      if (peer) peer.destroy();
+      location.reload();
     }
   </script>
 </body>
